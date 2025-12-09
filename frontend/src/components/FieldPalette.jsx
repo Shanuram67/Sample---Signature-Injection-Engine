@@ -1,3 +1,4 @@
+// src/components/FieldPalette.jsx
 import React from "react";
 
 const FIELD_TYPES = [
@@ -9,6 +10,19 @@ const FIELD_TYPES = [
 ];
 
 const FieldPalette = () => {
+  const onDragStart = (e, type) => {
+    // set data type for drop handler
+    e.dataTransfer.setData("application/field-type", type);
+    e.dataTransfer.effectAllowed = "copyMove";
+
+    // optional: set a nicer drag image (small invisible canvas)
+    const crt = document.createElement("canvas");
+    crt.width = 1;
+    crt.height = 1;
+    // place near cursor
+    e.dataTransfer.setDragImage(crt, 0, 0);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -25,9 +39,7 @@ const FieldPalette = () => {
           <div
             key={item.type}
             draggable
-            onDragStart={(e) =>
-              e.dataTransfer.setData("application/field-type", item.type)
-            }
+            onDragStart={(e) => onDragStart(e, item.type)}
             className="cursor-move rounded-lg border border-primary/60 bg-surface px-3 py-2 text-sm flex items-center justify-between hover:bg-primary/20 transition"
           >
             <span>{item.label}</span>
