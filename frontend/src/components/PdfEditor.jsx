@@ -57,7 +57,7 @@ const [dragPreview, setDragPreview] = useState(null);
   const uploadPdf = useCallback(async (file) => {
   const form = new FormData();
   form.append("pdf", file);
-  const res = await fetch("http://localhost:4000/api/upload-pdf", {
+  const res = await fetch("https://sample-signature-injection-engine.onrender.com/api/upload-pdf", {
     method: "POST",
     body: form,
   });
@@ -82,7 +82,7 @@ const [dragPreview, setDragPreview] = useState(null);
   // If the publicUrl is already absolute, use it directly.
   if (pdf.publicUrl) {
     // If you prefer relative path, you can use pdf.publicUrl directly (browser will call same origin)
-    return pdf.publicUrl.startsWith("http") ? pdf.publicUrl : `http://localhost:4000${pdf.publicUrl}`;
+    return pdf.publicUrl.startsWith("http") ? pdf.publicUrl : `https://sample-signature-injection-engine.onrender.com${pdf.publicUrl}`;
   }
   // fallback to originalPath (if you embedded a local asset)
   return pdf.originalPath || samplePdf;
@@ -293,7 +293,7 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
                   fields: fieldsToSend,
                 };
 
-                const resp = await fetch("http://localhost:4000/api/sign-pdf", {
+                const resp = await fetch("https://sample-signature-injection-engine.onrender.com/api/sign-pdf", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
@@ -305,7 +305,7 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
                 }
 
                 const data = await resp.json();
-                window.open(`http://localhost:4000${data.url}`, "_blank");
+                window.open(`https://sample-signature-injection-engine.onrender.com${data.url}`, "_blank");
               } catch (err) {
                 console.error(err);
                 alert("Sign failed: " + err.message);
