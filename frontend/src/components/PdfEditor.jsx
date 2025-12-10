@@ -6,6 +6,9 @@ import PageView from "./PageView";
 import SignatureModal from "./SignatureModal";
 import samplePdf from "../assets/sample.pdf";
 
+// ✅ API base from Vite env (fallback to localhost if not set)
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 // pdf.js worker for Vite/Esm
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -17,12 +20,9 @@ const PdfEditor = () => {
   const [pageMeta, setPageMeta] = useState({ widthPt: null, heightPt: null });
   const [scale, setScale] = useState(1.2);
   const [fields, setFields] = useState([]);
-  // PdfEditor.jsx (inside component, near other useState hooks)
-const [dragPreview, setDragPreview] = useState(null); 
-// shape: { type, pageIndex, leftPx, topPx, widthPx, heightPx }
-
-// Timeout id to clear preview after leaving quickly
+  const [dragPreview, setDragPreview] = useState(null);
   const dragLeaveTimeoutRef = useRef(null);
+
   const [uploadedPdfs, setUploadedPdfs] = useState([
     { pdfId: "sample", originalPath: samplePdf },
   ]);
@@ -52,129 +52,132 @@ const [dragPreview, setDragPreview] = useState(null);
     [pageMeta.widthPt, pageMeta.heightPt]
   );
 
-  // upload PDF (multipart)
-
+  // === Upload PDF (multipart) ===
   const uploadPdf = useCallback(async (file) => {
-  const form = new FormData();
-  form.append("pdf", file);
-  const res = await fetch("https://sample-signature-injection-engine.onrender.com/api/upload-pdf", {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || "Upload failed");
-  }
-  const json = await res.json(); // { pdfId, originalPath, publicUrl, publicPath }
-  // Use publicUrl (relative path from server)
-  setUploadedPdfs((prev) => [
-    { pdfId: json.pdfId, originalPath: json.originalPath, publicUrl: json.publicUrl },
-    ...prev,
-  ]);
-  setSelectedPdfId(json.pdfId);
-    }, []);
+    const form = new FormData();
+    form.append("pdf", file);
 
+    const res = await fetch(`${API_BASE}/api/upload-pdf`, {
+      method: "POST",
+      body: form,
+    });
 
-  const currentFileSource = useMemo(() => {
-  const pdf = uploadedPdfs.find((p) => p.pdfId === selectedPdfId);
-  if (!pdf) return samplePdf;
-  // If server returned a publicUrl, use absolute origin + publicUrl.
-  // If the publicUrl is already absolute, use it directly.
-  if (pdf.publicUrl) {
-    // If you prefer relative path, you can use pdf.publicUrl directly (browser will call same origin)
-    return pdf.publicUrl.startsWith("http") ? pdf.publicUrl : `https://sample-signature-injection-engine.onrender.com${pdf.publicUrl}`;
-  }
-  // fallback to originalPath (if you embedded a local asset)
-  return pdf.originalPath || samplePdf;
-}, [selectedPdfId, uploadedPdfs]);
-
-
-
-    // Called from PageView on dragOver to update preview position
-const handleDragOverPreview = useCallback((pageIndex, clientX, clientY, pageRect, fieldType) => {
-  if (!pageMeta.widthPt || !pageMeta.heightPt) return;
-
-  // compute where preview should appear (px coords relative to page)
-  const dropX = clientX - pageRect.left;
-  const dropY = clientY - pageRect.top;
-
-  const widthPx = fieldType === "signature" ? 180 : 150;
-  const heightPx = fieldType === "signature" ? 80 : 40;
-
-  const leftPx = Math.max(0, Math.min(pageRect.width - widthPx, dropX - widthPx / 2));
-  const topPx = Math.max(0, Math.min(pageRect.height - heightPx, dropY - heightPx / 2));
-
-  setDragPreview({
-    type: fieldType,
-    pageIndex,
-    leftPx,
-    topPx,
-    widthPx,
-    heightPx,
-  });
-
-  // clear any scheduled removal
-  if (dragLeaveTimeoutRef.current) {
-    clearTimeout(dragLeaveTimeoutRef.current);
-    dragLeaveTimeoutRef.current = null;
-  }
-}, [pageMeta, scale]);
-
-// Called from PageView when drag leaves page
-const handleDragLeavePreview = useCallback(() => {
-  // don't remove immediately — small buffer to allow re-entry
-  if (dragLeaveTimeoutRef.current) clearTimeout(dragLeaveTimeoutRef.current);
-  dragLeaveTimeoutRef.current = setTimeout(() => {
-    setDragPreview(null);
-    dragLeaveTimeoutRef.current = null;
-  }, 120); // small delay
-}, []);
-
-// When user actually drops, create field and clear preview
-const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fieldType) => {
-  if (!pageMeta.widthPt || !pageMeta.heightPt) return;
-
-  // (existing conversion from earlier) --- compute PDF coords
-  const viewportHeightPx = pageMeta.heightPt * scale;
-  const dropX = clientX - pageRect.left;
-  const dropY = clientY - pageRect.top;
-
-  const widthPx = fieldType === "signature" ? 180 : 150;
-  const heightPx = fieldType === "signature" ? 80 : 40;
-
-  const leftPx = dropX - widthPx / 2;
-  const topPx = dropY - heightPx / 2;
-
-  const xPdf = leftPx / scale;
-  const widthPdf = widthPx / scale;
-  const heightPdf = heightPx / scale;
-  const bottomPx = topPx + heightPx;
-  const yPdf = (viewportHeightPx - bottomPx) / scale;
-
-  const newField = {
-    id: `field_${Date.now()}`,
-    type: fieldType,
-    pageIndex,
-    x: xPdf,
-    y: yPdf,
-    width: widthPdf,
-    height: heightPdf,
-    pdfId: selectedPdfId,
-  };
-
-  setFields(prev => [...prev, newField]);
-  setDragPreview(null); // clear preview
-  }, [pageMeta, scale, selectedPdfId]);
-  const updateField = useCallback((id, partial) => {
-  setFields(prev => {
-    if (partial && partial._delete) {
-      return prev.filter(f => f.id !== id);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || "Upload failed");
     }
-    return prev.map(f => (f.id === id ? { ...f, ...partial } : f));
-  });
-}, []);
 
+    const json = await res.json(); // { pdfId, originalPath, publicUrl, publicPath }
 
+    setUploadedPdfs((prev) => [
+      { pdfId: json.pdfId, originalPath: json.originalPath, publicUrl: json.publicUrl },
+      ...prev,
+    ]);
+    setSelectedPdfId(json.pdfId);
+  }, []);
+
+  // === Pick which file to render ===
+  const currentFileSource = useMemo(() => {
+    const pdf = uploadedPdfs.find((p) => p.pdfId === selectedPdfId);
+    if (!pdf) return samplePdf;
+
+    if (pdf.publicUrl) {
+      // If publicUrl is relative, prepend API_BASE
+      return pdf.publicUrl.startsWith("http")
+        ? pdf.publicUrl
+        : `${API_BASE}${pdf.publicUrl}`;
+    }
+    return pdf.originalPath || samplePdf;
+  }, [selectedPdfId, uploadedPdfs]);
+
+  // === Drag preview handlers ===
+  const handleDragOverPreview = useCallback(
+    (pageIndex, clientX, clientY, pageRect, fieldType) => {
+      if (!pageMeta.widthPt || !pageMeta.heightPt) return;
+
+      const dropX = clientX - pageRect.left;
+      const dropY = clientY - pageRect.top;
+
+      const widthPx = fieldType === "signature" ? 180 : 150;
+      const heightPx = fieldType === "signature" ? 80 : 40;
+
+      const leftPx = Math.max(0, Math.min(pageRect.width - widthPx, dropX - widthPx / 2));
+      const topPx = Math.max(0, Math.min(pageRect.height - heightPx, dropY - heightPx / 2));
+
+      setDragPreview({
+        type: fieldType,
+        pageIndex,
+        leftPx,
+        topPx,
+        widthPx,
+        heightPx,
+      });
+
+      if (dragLeaveTimeoutRef.current) {
+        clearTimeout(dragLeaveTimeoutRef.current);
+        dragLeaveTimeoutRef.current = null;
+      }
+    },
+    [pageMeta, scale]
+  );
+
+  const handleDragLeavePreview = useCallback(() => {
+    if (dragLeaveTimeoutRef.current) clearTimeout(dragLeaveTimeoutRef.current);
+    dragLeaveTimeoutRef.current = setTimeout(() => {
+      setDragPreview(null);
+      dragLeaveTimeoutRef.current = null;
+    }, 120);
+  }, []);
+
+  // === Drop: pixels -> PDF points ===
+  const handleDropField = useCallback(
+    (pageIndex, clientX, clientY, pageRect, fieldType) => {
+      if (!pageMeta.widthPt || !pageMeta.heightPt) return;
+
+      const viewportHeightPx = pageMeta.heightPt * scale;
+      const dropX = clientX - pageRect.left;
+      const dropY = clientY - pageRect.top;
+
+      const widthPx = fieldType === "signature" ? 180 : 150;
+      const heightPx = fieldType === "signature" ? 80 : 40;
+
+      const leftPx = dropX - widthPx / 2;
+      const topPx = dropY - heightPx / 2;
+
+      const xPdf = leftPx / scale;
+      const widthPdf = widthPx / scale;
+      const heightPdf = heightPx / scale;
+      const bottomPx = topPx + heightPx;
+      const yPdf = (viewportHeightPx - bottomPx) / scale;
+
+      const newField = {
+        id: `field_${Date.now()}`,
+        type: fieldType,
+        pageIndex,
+        x: xPdf,
+        y: yPdf,
+        width: widthPdf,
+        height: heightPdf,
+        pdfId: selectedPdfId,
+      };
+
+      setFields((prev) => [...prev, newField]);
+      setDragPreview(null);
+    },
+    [pageMeta, scale, selectedPdfId]
+  );
+
+  // === Update field ===
+  const updateField = useCallback((id, partial) => {
+    setFields((prev) => {
+      if (partial && partial._delete) {
+        return prev.filter((f) => f.id !== id);
+      }
+      return prev.map((f) => (f.id === id ? { ...f, ...partial } : f));
+    });
+  }, []);
+
+  // === Signature handlers ===
   const handleStartSign = useCallback((fieldId) => {
     setActiveSignatureFieldId(fieldId);
   }, []);
@@ -194,9 +197,10 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
 
   const activeSignatureField = fields.find((f) => f.id === activeSignatureFieldId);
 
-  const currentPdfFields = useMemo(() => {
-    return fields.filter((f) => f.pdfId === selectedPdfId);
-  }, [fields, selectedPdfId]);
+  const currentPdfFields = useMemo(
+    () => fields.filter((f) => f.pdfId === selectedPdfId),
+    [fields, selectedPdfId]
+  );
 
   return (
     <>
@@ -250,23 +254,21 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
             loading={<div className="text-sm text-gray-300">Loading PDF…</div>}
           >
             {Array.from(new Array(numPages || 0), (_, index) => (
-              // inside PdfEditor.jsx where you render PageView:
-<PageView
-  key={`page_${index + 1}_${selectedPdfId}`}
-  pageNumber={index + 1}
-  pageIndex={index}
-  scale={scale}
-  pageMeta={pageMeta}
-  onPageLoadSuccess={onPageLoadSuccess}
-  fields={currentPdfFields.filter((f) => f.pageIndex === index)}
-  onDropField={handleDropField}
-  onUpdateField={updateField}
-  onStartSign={handleStartSign}
-  onDragOverPreview={handleDragOverPreview}     // pass handler
-  onDragLeavePreview={handleDragLeavePreview}   // pass handler
-  dragPreview={dragPreview}                     // pass dragPreview state
-/>
-
+              <PageView
+                key={`page_${index + 1}_${selectedPdfId}`}
+                pageNumber={index + 1}
+                pageIndex={index}
+                scale={scale}
+                pageMeta={pageMeta}
+                onPageLoadSuccess={onPageLoadSuccess}
+                fields={currentPdfFields.filter((f) => f.pageIndex === index)}
+                onDropField={handleDropField}
+                onUpdateField={updateField}
+                onStartSign={handleStartSign}
+                onDragOverPreview={handleDragOverPreview}
+                onDragLeavePreview={handleDragLeavePreview}
+                dragPreview={dragPreview}
+              />
             ))}
           </Document>
 
@@ -293,7 +295,7 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
                   fields: fieldsToSend,
                 };
 
-                const resp = await fetch("https://sample-signature-injection-engine.onrender.com/api/sign-pdf", {
+                const resp = await fetch(`${API_BASE}/api/sign-pdf`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
@@ -305,7 +307,7 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
                 }
 
                 const data = await resp.json();
-                window.open(`https://sample-signature-injection-engine.onrender.com${data.url}`, "_blank");
+                window.open(`${API_BASE}${data.url}`, "_blank");
               } catch (err) {
                 console.error(err);
                 alert("Sign failed: " + err.message);
@@ -320,7 +322,11 @@ const handleDropField = useCallback((pageIndex, clientX, clientY, pageRect, fiel
 
       {/* Signature modal */}
       {activeSignatureField && (
-        <SignatureModal field={activeSignatureField} onSave={handleSaveSignature} onCancel={handleCancelSignature} />
+        <SignatureModal
+          field={activeSignatureField}
+          onSave={handleSaveSignature}
+          onCancel={handleCancelSignature}
+        />
       )}
     </>
   );
