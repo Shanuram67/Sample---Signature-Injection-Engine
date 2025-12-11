@@ -162,7 +162,7 @@ const SignatureModal = ({ field, onSave, onCancel }) => {
           <div>
             <button
               onClick={onCancel}
-              className="text-sm px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
+              className="text-sm px-2 py-1 rounded bg-[#895AF6] hover:bg-[#895AF8]"
               aria-label="Close signature modal"
             >
               Close
@@ -192,7 +192,7 @@ const SignatureModal = ({ field, onSave, onCancel }) => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleClear}
-              className="px-3 py-2 rounded-md border border-gray-300 text-sm bg-white hover:bg-gray-50"
+              className="px-3 py-2 rounded-md border border-black-300 text-sm bg-[#895AF6] hover:bg-[#895AF8]"
               aria-label="Clear signature"
             >
               Clear
@@ -202,7 +202,7 @@ const SignatureModal = ({ field, onSave, onCancel }) => {
                 // quick undo: signature-canvas exposes undo? if not, leave clear only
                 // placeholder for undo future enhancement
               }}
-              className="px-3 py-2 rounded-md border border-gray-300 text-sm bg-white hover:bg-gray-50"
+              className="px-3 py-2 rounded-md border border-black-300 text-sm bg-[#895AF6] hover:bg-[#895AF8]"
               disabled
             >
               Undo
@@ -212,7 +212,7 @@ const SignatureModal = ({ field, onSave, onCancel }) => {
           <div className="flex items-center gap-2">
             <button
               onClick={onCancel}
-              className="px-3 py-2 rounded-md bg-gray-100 text-sm hover:bg-gray-200"
+              className="px-3 py-2 rounded-md bg-[#895AF6] text-sm hover:bg-[#895AF8]"
             >
               Cancel
             </button>
